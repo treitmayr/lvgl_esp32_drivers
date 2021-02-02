@@ -95,6 +95,11 @@ bool lvgl_spi_driver_init(int host, int miso_pin, int mosi_pin, int sclk_pin,
 /* Initialize I2C master  */
 bool lvgl_i2c_driver_init(int port, int sda_pin, int scl_pin, int speed);
 
+void lvgl_wait_eventloop(const uint32_t millis);
+void lvgl_try_disable_task(lv_task_t *read_task);
+void IRAM_ATTR lvgl_try_enable_task(lv_task_t *read_task);
+void IRAM_ATTR lvgl_notify_event_loop();
+
 /**********************
  *      MACROS
  **********************/

@@ -9,9 +9,11 @@
 #include "xpt2046.h"
 #include "esp_system.h"
 #include "esp_log.h"
+#include "esp_err.h"
 #include "driver/gpio.h"
 #include "tp_spi.h"
 #include <stddef.h>
+#include "lvgl_helpers.h"
 
 /*********************
  *      DEFINES
@@ -38,6 +40,7 @@ static void xpt2046_corr(int16_t * x, int16_t * y);
 static void xpt2046_avg(int16_t * x, int16_t * y);
 static int16_t xpt2046_cmd(uint8_t cmd);
 static xpt2046_touch_detect_t xpt2048_is_touch_detected();
+static void IRAM_ATTR touch_isr_handler(void* arg);
 
 /**********************
  *  STATIC VARIABLES
@@ -67,11 +70,14 @@ void xpt2046_init(void)
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
+        .intr_type = GPIO_INTR_NEGEDGE  // GPIO_INTR_DISABLE,
     };
-    
-    esp_err_t ret = gpio_config(&irq_config);
-    assert(ret == ESP_OK);
+
+    ESP_ERROR_CHECK(gpio_config(&irq_config));
+
+    // install gpio isr service
+    esp_err_t ret = gpio_install_isr_service(0);
+    assert((ret == ESP_OK) || (ret == ESP_ERR_INVALID_STATE));
 #endif
 }
 
@@ -85,6 +91,17 @@ bool xpt2046_read(lv_indev_drv_t * drv, lv_indev_data_t * data)
     static int16_t last_x = 0;
     static int16_t last_y = 0;
     bool valid = false;
+
+#if XPT2046_TOUCH_IRQ ||  XPT2046_TOUCH_IRQ_PRESS
+    static bool is_isr_installed = false;
+    if (!is_isr_installed)
+    {
+      ESP_LOGI(TAG, "Installing ISR");
+      is_isr_installed = true;
+      // hook isr handler for specific gpio pin
+      ESP_ERROR_CHECK(gpio_isr_handler_add(XPT2046_IRQ, touch_isr_handler, (void*)(drv->read_task)));
+    }
+#endif
 
     int16_t x = last_x;
     int16_t y = last_y;
@@ -111,6 +128,7 @@ bool xpt2046_read(lv_indev_drv_t * drv, lv_indev_data_t * data)
     else
     {
         avg_last = 0;
+        lvgl_try_disable_task(drv->read_task);
     }
 
     data->point.x = x;
@@ -217,4 +235,9 @@ static void xpt2046_avg(int16_t * x, int16_t * y)
     /*Normalize the sums*/
     (*x) = (int32_t)x_sum / avg_last;
     (*y) = (int32_t)y_sum / avg_last;
+}
+
+static void IRAM_ATTR touch_isr_handler(void* arg)
+{
+    lvgl_try_enable_task((lv_task_t*)arg);
 }

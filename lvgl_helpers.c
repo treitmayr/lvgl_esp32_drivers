@@ -238,3 +238,43 @@ bool lvgl_spi_driver_init(int host,
     return ESP_OK != ret;
 }
 
+static TaskHandle_t eventloop_task_handle = NULL;
+
+void lvgl_wait_eventloop(const uint32_t millis)
+{
+    if (eventloop_task_handle == NULL)
+    {
+        eventloop_task_handle = xTaskGetCurrentTaskHandle();
+    }
+    uint32_t ticks = pdMS_TO_TICKS(millis);
+    if (ticks < 1)
+    {
+        ticks = 1U;
+    }
+    ulTaskNotifyTake(pdTRUE, ticks);
+}
+
+void lvgl_try_disable_task(lv_task_t *read_task)
+{
+    lv_task_set_period(read_task, LV_NO_TASK_READY);
+}
+
+void IRAM_ATTR lvgl_try_enable_task(lv_task_t *read_task)
+{
+    //lv_task_set_period(read_task, LV_INDEV_DEF_READ_PERIOD);  // not in IRAM
+    read_task->period = LV_INDEV_DEF_READ_PERIOD;
+    lvgl_notify_event_loop();
+}
+
+void IRAM_ATTR lvgl_notify_event_loop()
+{
+    if (eventloop_task_handle != NULL)
+    {
+        BaseType_t high_task_wakeup = pdFALSE;
+        vTaskNotifyGiveFromISR(eventloop_task_handle, &high_task_wakeup);
+        if (high_task_wakeup != pdFALSE)
+        {
+            portYIELD_FROM_ISR();
+        }
+    }
+}
