@@ -240,7 +240,7 @@ bool lvgl_spi_driver_init(int host,
 
 static TaskHandle_t eventloop_task_handle = NULL;
 
-void lvgl_wait_eventloop(const uint32_t millis)
+bool lvgl_wait_eventloop(const uint32_t millis)
 {
     if (eventloop_task_handle == NULL)
     {
@@ -251,7 +251,8 @@ void lvgl_wait_eventloop(const uint32_t millis)
     {
         ticks = 1U;
     }
-    ulTaskNotifyTake(pdTRUE, ticks);
+    const uint32_t notificationCount = ulTaskNotifyTake(pdTRUE, ticks);
+    return (notificationCount != 0U);
 }
 
 void lvgl_try_disable_task(lv_task_t *read_task)
