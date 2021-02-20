@@ -40,6 +40,8 @@ typedef enum _disp_spi_send_flag_t {
     DISP_SPI_MODE_QIO           = 0x00000800, 
     DISP_SPI_MODE_DIOQIO_ADDR   = 0x00001000, 
 	DISP_SPI_VARIABLE_DUMMY		= 0x00002000,
+    DISP_SPI_RESET_CD       = 0x00004000,
+    DISP_SPI_SET_CD          = 0x00008000,
 } disp_spi_send_flag_t;
 
 
@@ -64,13 +66,26 @@ void disp_wait_for_pending_transactions(void);
 void disp_spi_acquire(void);
 void disp_spi_release(void);
 
-static inline void disp_spi_send_data(uint8_t *data, size_t length) {
+static inline void disp_spi_send_data(const uint8_t *data, size_t length) {
     disp_spi_transaction(data, length, DISP_SPI_SEND_POLLING, NULL, 0, 0);
 }
 
-static inline void disp_spi_send_colors(uint8_t *data, size_t length) {
+static inline void disp_spi_send_colors(const uint8_t *data, size_t length) {
     disp_spi_transaction(data, length,
+        // ((length > 64) ? DISP_SPI_SEND_QUEUED : DISP_SPI_SEND_POLLING) | DISP_SPI_SIGNAL_FLUSH,
         DISP_SPI_SEND_QUEUED | DISP_SPI_SIGNAL_FLUSH,
+        NULL, 0, 0);
+}
+
+static inline void disp_spi_send_data_with_cd(const uint8_t *data, size_t length, bool set_cd) {
+    disp_spi_transaction(data, length,
+        DISP_SPI_SEND_POLLING | ((set_cd) ? DISP_SPI_SET_CD : DISP_SPI_RESET_CD), NULL, 0, 0);
+}
+
+static inline void disp_spi_send_colors_with_cd(const uint8_t *data, size_t length) {
+    disp_spi_transaction(data, length,
+        // ((length > 64) ? DISP_SPI_SEND_QUEUED : DISP_SPI_SEND_POLLING) | DISP_SPI_SIGNAL_FLUSH | DISP_SPI_SET_CD,
+        DISP_SPI_SEND_QUEUED | DISP_SPI_SIGNAL_FLUSH | DISP_SPI_SET_CD,
         NULL, 0, 0);
 }
 

@@ -35,8 +35,9 @@ typedef struct {
 static void ili9341_set_orientation(uint8_t orientation);
 
 static void ili9341_send_cmd(uint8_t cmd);
-static void ili9341_send_data(void * data, uint16_t length);
-static void ili9341_send_color(void * data, uint16_t length);
+static void ili9341_send_data(const void *data, uint16_t length);
+static void ili9341_send_color(const void *data, uint16_t length);
+static void ili9341_send_coords(const lv_coord_t c1, const lv_coord_t c2);
 
 /**********************
  *  STATIC VARIABLES
@@ -52,7 +53,7 @@ static void ili9341_send_color(void * data, uint16_t length);
 
 void ili9341_init(void)
 {
-	lcd_init_cmd_t ili_init_cmds[]={
+	static const lcd_init_cmd_t ili_init_cmds[]={
 		{0xCF, {0x00, 0x83, 0X30}, 3},
 		{0xED, {0x64, 0x03, 0X12, 0X81}, 4},
 		{0xE8, {0x85, 0x01, 0x79}, 3},
@@ -130,34 +131,44 @@ void ili9341_init(void)
 #endif
 }
 
-
 void ili9341_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * color_map)
 {
-	uint8_t data[4];
+	static lv_area_t last_area = { .x1 = -1, .y1 = -1, .x2 = -1, .y2 = -1 };
 
 	/*Column addresses*/
-	ili9341_send_cmd(0x2A);
-	data[0] = (area->x1 >> 8) & 0xFF;
-	data[1] = area->x1 & 0xFF;
-	data[2] = (area->x2 >> 8) & 0xFF;
-	data[3] = area->x2 & 0xFF;
-	ili9341_send_data(data, 4);
+	if (last_area.x1 != area->x1 ||
+	    last_area.x2 != area->x2)
+	{
+		ili9341_send_cmd(0x2A);
+		ili9341_send_coords(area->x1, area->x2);
+	}
 
 	/*Page addresses*/
-	ili9341_send_cmd(0x2B);
-	data[0] = (area->y1 >> 8) & 0xFF;
-	data[1] = area->y1 & 0xFF;
-	data[2] = (area->y2 >> 8) & 0xFF;
-	data[3] = area->y2 & 0xFF;
-	ili9341_send_data(data, 4);
+	if (last_area.y1 != area->y1 ||
+	    last_area.y2 != area->y2)
+	{
+		ili9341_send_cmd(0x2B);
+		ili9341_send_coords(area->y1, area->y2);
+	}
 
 	/*Memory write*/
 	ili9341_send_cmd(0x2C);
 
-
 	uint32_t size = lv_area_get_width(area) * lv_area_get_height(area);
 
-	ili9341_send_color((void*)color_map, size * 2);
+	ili9341_send_color((const void*)color_map, size * 2);
+
+  last_area = *area;
+}
+
+static void ili9341_send_coords(const lv_coord_t c1, const lv_coord_t c2)
+{
+	uint8_t data[4];
+	data[0] = (c1 >> 8) & 0xFF;
+	data[1] = c1 & 0xFF;
+	data[2] = (c2 >> 8) & 0xFF;
+	data[3] = c2 & 0xFF;
+	ili9341_send_data(data, 4);
 }
 
 void ili9341_enable_backlight(bool backlight)
@@ -195,25 +206,19 @@ void ili9341_sleep_out()
  **********************/
 
 
-static void ili9341_send_cmd(uint8_t cmd)
+static inline void ili9341_send_cmd(uint8_t cmd)
 {
-    disp_wait_for_pending_transactions();
-    gpio_set_level(ILI9341_DC, 0);	 /*Command mode*/
-    disp_spi_send_data(&cmd, 1);
+    disp_spi_send_data_with_cd(&cmd, 1, false);
 }
 
-static void ili9341_send_data(void * data, uint16_t length)
+static inline void ili9341_send_data(const void *data, uint16_t length)
 {
-    disp_wait_for_pending_transactions();
-    gpio_set_level(ILI9341_DC, 1);	 /*Data mode*/
-    disp_spi_send_data(data, length);
+    disp_spi_send_data_with_cd(data, length, true);
 }
 
-static void ili9341_send_color(void * data, uint16_t length)
+static inline void ili9341_send_color(const void *data, uint16_t length)
 {
-    disp_wait_for_pending_transactions();
-    gpio_set_level(ILI9341_DC, 1);   /*Data mode*/
-    disp_spi_send_colors(data, length);
+    disp_spi_send_colors_with_cd(data, length);
 }
 
 static void ili9341_set_orientation(uint8_t orientation)
