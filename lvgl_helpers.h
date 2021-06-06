@@ -95,35 +95,6 @@ bool lvgl_spi_driver_init(int host, int miso_pin, int mosi_pin, int sclk_pin,
 /* Initialize I2C master  */
 bool lvgl_i2c_driver_init(int port, int sda_pin, int scl_pin, int speed);
 
-/**
- * Wait inside the LVGL event loop for the next event or until the given
- * number of milliseconds have elapsed, whatever occurrs earlier.
- *
- * @return true if an event occurred, false if the timeout occurred.
- */
-bool lvgl_wait_eventloop(const uint32_t millis);
-
-/**
- * Disables the given LVGL task by setting its task invocation period to
- * LV_NO_TASK_READY.
- */
-void lvgl_try_disable_task(lv_task_t *read_task);
-
-/**
- * Restores the regular task invocation period for input devices in the
- * given task and then retrigger the event loop.
- *
- * This method is intended to be used by an ISR when touching the display
- * was detected.
- */
-void IRAM_ATTR lvgl_try_enable_task(lv_task_t *read_task);
-
-/**
- * Retrigger the event loop by unblocking the call to lvgl_wait_eventloop.
- * This method may be invoked from a different task or from an ISR.
- */
-void IRAM_ATTR lvgl_notify_event_loop();
-
 /**********************
  *      MACROS
  **********************/

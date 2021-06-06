@@ -14,6 +14,7 @@
 #include "tp_spi.h"
 #include <stddef.h>
 #include "lvgl_helpers.h"
+#include "lvgl_main_loop.h"
 
 /*********************
  *      DEFINES
@@ -128,7 +129,7 @@ bool xpt2046_read(lv_indev_drv_t * drv, lv_indev_data_t * data)
     else
     {
         avg_last = 0;
-        lvgl_try_disable_task(drv->read_task);
+        lvgl_disable_task(drv->read_task);
     }
 
     data->point.x = x;
@@ -239,5 +240,5 @@ static void xpt2046_avg(int16_t * x, int16_t * y)
 
 static void IRAM_ATTR touch_isr_handler(void* arg)
 {
-    lvgl_try_enable_task((lv_task_t*)arg);
+    lvgl_enable_task_isr((lv_task_t*)arg);
 }
